@@ -1,381 +1,960 @@
 <script setup>
-import { useStore } from 'vuex'
-import { ref } from 'vue'
-import ProfitList from './components/ProfitList.vue'
-import ExpenseList from './components/ExpenseList.vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
-const store = useStore()
+const isLoading = ref(true)
+const loadError = ref('')
 
-const pTitle = ref('')
-const pAmount = ref(0)
-const eTitle = ref('')
-const eAmount = ref(0)
-const eCat = ref('еда')
+const specialties = [
+  'Кардиолог',
+  'Невролог',
+  'Терапевт',
+  'Дерматолог',
+  'Педиатр',
+  'Офтальмолог'
+]
 
-const addP = () => {
-  if(pAmount.value > 0 && pTitle.value.trim()) {
-    store.commit('ADD_INCOME', {
-      id: Date.now(), 
-      title: pTitle.value, 
-      number: Number(pAmount.value), 
-      date: new Date().toLocaleDateString('ru-RU')
-    })
-    pTitle.value = '';
-    pAmount.value = 0
+const doctors = ref([
+  {
+    id: 1,
+    name: 'Анна Викторовна Петрова',
+    specialty: 'Кардиолог',
+    rating: 4.9,
+    reviewsCount: 128,
+    achievements: ['Кандидат мед. наук', 'Стажировка в Mayo Clinic'],
+    experience: 12,
+    price: 3200,
+    todaySlots: ['10:30', '12:00', '15:30'],
+    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=facearea&w=120&h=120',
+    education: 'Первый МГМУ им. И.М. Сеченова',
+    description: 'Специализируется на диагностике и лечении сердечно-сосудистых заболеваний.',
+    weeklySchedule: [
+      { date: '2024-09-23', dayLabel: 'Пн, 23', slots: ['09:00', '10:00', '11:30'] },
+      { date: '2024-09-25', dayLabel: 'Ср, 25', slots: ['13:00', '14:30'] },
+      { date: '2024-09-27', dayLabel: 'Пт, 27', slots: ['09:30', '12:00', '16:00'] }
+    ],
+    reviews: [
+      { id: 1, name: 'Мария К.', rating: 5, text: 'Очень внимательный врач, все объяснила.', date: '2024-08-14' },
+      { id: 2, name: 'Иван С.', rating: 4, text: 'Профессионально, но ожидал больше времени.', date: '2024-07-20' },
+      { id: 3, name: 'Алина П.', rating: 5, text: 'После консультации стало спокойнее.', date: '2024-07-02' }
+    ]
+  },
+  {
+    id: 2,
+    name: 'Дмитрий Сергеевич Волков',
+    specialty: 'Невролог',
+    rating: 4.7,
+    reviewsCount: 94,
+    achievements: ['Член Ассоциации неврологов', 'Автор 15 публикаций'],
+    experience: 9,
+    price: 2800,
+    todaySlots: ['11:00', '13:30'],
+    avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=facearea&w=120&h=120',
+    education: 'РНИМУ им. Н.И. Пирогова',
+    description: 'Занимается лечением хронических болевых синдромов и мигреней.',
+    weeklySchedule: [
+      { date: '2024-09-24', dayLabel: 'Вт, 24', slots: ['09:00', '12:00', '14:00'] },
+      { date: '2024-09-26', dayLabel: 'Чт, 26', slots: ['10:30', '11:30', '15:00'] }
+    ],
+    reviews: [
+      { id: 4, name: 'Ольга Н.', rating: 5, text: 'Помог разобраться с диагнозом.', date: '2024-08-01' },
+      { id: 5, name: 'Сергей Р.', rating: 4, text: 'Все четко и по делу.', date: '2024-06-18' }
+    ]
+  },
+  {
+    id: 3,
+    name: 'Елена Михайловна Юдина',
+    specialty: 'Терапевт',
+    rating: 4.8,
+    reviewsCount: 211,
+    achievements: ['Лучший терапевт года', 'Ведущий врач клиники'],
+    experience: 15,
+    price: 2400,
+    todaySlots: ['09:00', '10:00', '17:00'],
+    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=facearea&w=120&h=120',
+    education: 'СПбГМУ им. акад. И.П. Павлова',
+    description: 'Проводит комплексные консультации и профилактические осмотры.',
+    weeklySchedule: [
+      { date: '2024-09-23', dayLabel: 'Пн, 23', slots: ['10:00', '11:00', '12:00'] },
+      { date: '2024-09-27', dayLabel: 'Пт, 27', slots: ['09:30', '13:00'] }
+    ],
+    reviews: [
+      { id: 6, name: 'Людмила П.', rating: 5, text: 'Очень доброжелательная и внимательная.', date: '2024-08-19' },
+      { id: 7, name: 'Артем Л.', rating: 4, text: 'Помогла быстро вылечиться.', date: '2024-07-08' },
+      { id: 8, name: 'Дарья Ф.', rating: 5, text: 'Советую всем знакомым.', date: '2024-06-30' }
+    ]
+  },
+  {
+    id: 4,
+    name: 'Николай Алексеевич Смирнов',
+    specialty: 'Дерматолог',
+    rating: 4.6,
+    reviewsCount: 58,
+    achievements: ['Эксперт по акне', 'Опыт 7 лет'],
+    experience: 7,
+    price: 2600,
+    todaySlots: [],
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=facearea&w=120&h=120',
+    education: 'КГМУ',
+    description: 'Работает с хроническими кожными заболеваниями.',
+    weeklySchedule: [
+      { date: '2024-09-25', dayLabel: 'Ср, 25', slots: ['09:00', '10:30'] },
+      { date: '2024-09-28', dayLabel: 'Сб, 28', slots: ['09:00', '11:00'] }
+    ],
+    reviews: [
+      { id: 9, name: 'Юрий П.', rating: 4, text: 'Хороший специалист.', date: '2024-06-12' }
+    ]
+  },
+  {
+    id: 5,
+    name: 'Марина Олеговна Орлова',
+    specialty: 'Педиатр',
+    rating: 4.9,
+    reviewsCount: 173,
+    achievements: ['Врач высшей категории', '10 лет в детской клинике'],
+    experience: 11,
+    price: 2300,
+    todaySlots: ['08:30', '11:00'],
+    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=facearea&w=120&h=120',
+    education: 'СГМУ',
+    description: 'Консультирует родителей по вопросам здоровья детей.',
+    weeklySchedule: [
+      { date: '2024-09-24', dayLabel: 'Вт, 24', slots: ['09:30', '10:30', '13:00'] },
+      { date: '2024-09-26', dayLabel: 'Чт, 26', slots: ['09:00', '12:00'] }
+    ],
+    reviews: [
+      { id: 10, name: 'Ксения М.', rating: 5, text: 'Очень чуткий врач, ребенок в восторге.', date: '2024-08-09' },
+      { id: 11, name: 'Павел С.', rating: 5, text: 'Подробно объяснила лечение.', date: '2024-07-15' }
+    ]
+  },
+  {
+    id: 6,
+    name: 'Светлана Игоревна Белова',
+    specialty: 'Офтальмолог',
+    rating: 4.5,
+    reviewsCount: 66,
+    achievements: ['Операции по коррекции зрения', 'Член общества офтальмологов'],
+    experience: 8,
+    price: 3000,
+    todaySlots: ['14:00'],
+    avatar: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=facearea&w=120&h=120',
+    education: 'НГМУ',
+    description: 'Проводит диагностику зрения и подбор оптики.',
+    weeklySchedule: [
+      { date: '2024-09-23', dayLabel: 'Пн, 23', slots: ['12:00', '14:00'] },
+      { date: '2024-09-26', dayLabel: 'Чт, 26', slots: ['09:00', '11:00'] }
+    ],
+    reviews: [
+      { id: 12, name: 'Егор П.', rating: 4, text: 'Все понравилось, внимательно.', date: '2024-07-28' }
+    ]
   }
+])
+
+const selectedDoctor = ref(doctors.value[0])
+
+const selectedSpecialty = ref('')
+const minRating = ref(0)
+const searchQuery = ref('')
+const sortBy = ref('rating')
+const sortOrder = ref('desc')
+const currentPage = ref(1)
+const pageSize = 4
+
+const isAuthenticated = ref(false)
+const userProfile = ref({
+  name: 'Гость',
+  avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&w=48&h=48'
+})
+
+const loginForm = ref({
+  email: '',
+  password: ''
+})
+const loginError = ref('')
+const showLoginModal = ref(false)
+
+const appointmentModal = ref({
+  open: false,
+  doctor: null,
+  slot: ''
+})
+const appointmentForm = ref({
+  complaints: '',
+  chronic: '',
+  height: '',
+  weight: '',
+  file: null
+})
+const appointmentError = ref('')
+const appointmentSuccess = ref('')
+
+const reviewSort = ref('date')
+const reviewPage = ref(1)
+const reviewsPerPage = 6
+
+onMounted(() => {
+  setTimeout(() => {
+    if (doctors.value.length === 0) {
+      loadError.value = 'Не удалось загрузить список врачей.'
+    }
+    isLoading.value = false
+  }, 600)
+})
+
+const filteredDoctors = computed(() => {
+  let list = [...doctors.value]
+
+  if (selectedSpecialty.value) {
+    list = list.filter((doctor) => doctor.specialty === selectedSpecialty.value)
+  }
+
+  if (minRating.value > 0) {
+    list = list.filter((doctor) => doctor.rating >= minRating.value)
+  }
+
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase()
+    list = list.filter((doctor) => doctor.name.toLowerCase().includes(query))
+  }
+
+  list.sort((a, b) => {
+    let compare = 0
+    switch (sortBy.value) {
+      case 'experience':
+        compare = a.experience - b.experience
+        break
+      case 'price':
+        compare = a.price - b.price
+        break
+      case 'name':
+        compare = a.name.localeCompare(b.name)
+        break
+      default:
+        compare = a.rating - b.rating
+    }
+    return sortOrder.value === 'asc' ? compare : -compare
+  })
+
+  return list
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredDoctors.value.length / pageSize)))
+
+const paginatedDoctors = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return filteredDoctors.value.slice(start, start + pageSize)
+})
+
+const sortedReviews = computed(() => {
+  if (!selectedDoctor.value) {
+    return []
+  }
+  const list = [...selectedDoctor.value.reviews]
+  if (reviewSort.value === 'rating') {
+    list.sort((a, b) => b.rating - a.rating)
+  } else {
+    list.sort((a, b) => new Date(b.date) - new Date(a.date))
+  }
+  return list
+})
+
+const reviewPages = computed(() => Math.max(1, Math.ceil(sortedReviews.value.length / reviewsPerPage)))
+
+const paginatedReviews = computed(() => {
+  const start = (reviewPage.value - 1) * reviewsPerPage
+  return sortedReviews.value.slice(start, start + reviewsPerPage)
+})
+
+watch([selectedSpecialty, minRating, searchQuery, sortBy, sortOrder], () => {
+  currentPage.value = 1
+})
+
+watch(selectedDoctor, () => {
+  reviewPage.value = 1
+})
+
+const toggleSortOrder = () => {
+  sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
 }
 
-const addE = () => {
-  if(eAmount.value > 0 && eTitle.value.trim()) {
-    store.commit('ADD_EXPENSE', {
-      id: Date.now(), 
-      title: eTitle.value,
-      number: Number(eAmount.value),
-      category: eCat.value,
-      date: new Date().toLocaleDateString('ru-RU')
-    })
-    eTitle.value = ''
-    eAmount.value = 0
+const selectDoctor = (doctor) => {
+  selectedDoctor.value = doctor
+}
+
+const clearSearch = () => {
+  searchQuery.value = ''
+}
+
+const openSlot = (doctor, slot) => {
+  if (!isAuthenticated.value) {
+    showLoginModal.value = true
+    loginError.value = 'Чтобы записаться, нужно войти в аккаунт.'
+    return
   }
+  appointmentModal.value = {
+    open: true,
+    doctor,
+    slot
+  }
+  appointmentError.value = ''
+  appointmentSuccess.value = ''
+}
+
+const closeAppointment = () => {
+  appointmentModal.value = { open: false, doctor: null, slot: '' }
+  appointmentForm.value = { complaints: '', chronic: '', height: '', weight: '', file: null }
+  appointmentError.value = ''
+  appointmentSuccess.value = ''
+}
+
+const submitAppointment = () => {
+  appointmentError.value = ''
+  appointmentSuccess.value = ''
+
+  if (!appointmentForm.value.complaints.trim()) {
+    appointmentError.value = 'Укажите жалобы.'
+    return
+  }
+
+  const height = Number(appointmentForm.value.height)
+  const weight = Number(appointmentForm.value.weight)
+
+  if (!height || height < 50 || height > 250) {
+    appointmentError.value = 'Рост должен быть в диапазоне 50-250 см.'
+    return
+  }
+
+  if (!weight || weight < 20 || weight > 300) {
+    appointmentError.value = 'Вес должен быть в диапазоне 20-300 кг.'
+    return
+  }
+
+  appointmentSuccess.value = 'Запись успешно создана. Мы отправили подтверждение на email.'
+  setTimeout(() => {
+    closeAppointment()
+  }, 1600)
+}
+
+const submitLogin = () => {
+  loginError.value = ''
+  if (!loginForm.value.email.trim() || !loginForm.value.password.trim()) {
+    loginError.value = 'Введите email и пароль.'
+    return
+  }
+  if (!loginForm.value.email.includes('@')) {
+    loginError.value = 'Email указан некорректно.'
+    return
+  }
+
+  isAuthenticated.value = true
+  userProfile.value = {
+    name: 'Екатерина Иванова',
+    avatar: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=facearea&w=48&h=48'
+  }
+  loginForm.value = { email: '', password: '' }
+  showLoginModal.value = false
+  loginError.value = ''
+}
+
+const handleFile = (event) => {
+  const [file] = event.target.files
+  appointmentForm.value.file = file || null
 }
 </script>
 
 <template>
   <div class="app">
     <header class="header">
-      <h1 class="app-title">💰 Finance Manager</h1>
-      <div class="balance-display">
-        <span class="balance-label">Текущий баланс:</span>
-        <span class="balance-amount" :class="{ positive: store.getters.balance >= 0, negative: store.getters.balance < 0 }">
-          {{ store.getters.balance }}₸
-        </span>
+      <div class="brand">
+        <p class="eyebrow">Digital Direction</p>
+        <h1>Запись к врачам</h1>
+        <p class="subtitle">Выберите специалиста, настройте фильтры и запишитесь на удобное время.</p>
+      </div>
+      <div class="profile">
+        <div class="profile-info">
+          <span class="profile-name">{{ userProfile.name }}</span>
+          <span class="profile-status">{{ isAuthenticated ? 'Авторизован' : 'Гость' }}</span>
+        </div>
+        <img :src="userProfile.avatar" alt="User avatar" class="profile-avatar" />
+        <button class="ghost-btn" @click="showLoginModal = true" v-if="!isAuthenticated">Войти</button>
       </div>
     </header>
 
-    <main class="main-container">
-      <div class="left-panel">
-        <div class="stats-cards">
-          <div class="stat-card income-stat">
-            <div class="stat-icon">↑</div>
-            <div class="stat-info">
-              <div class="stat-label">Общий доход</div>
-              <div class="stat-value positive">{{ store.getters.totalIncome }}₸</div>
+    <section class="filters">
+      <div class="filter-card">
+        <label class="filter-label">Специальность</label>
+        <select v-model="selectedSpecialty" class="filter-select">
+          <option value="">Все специальности</option>
+          <option v-for="item in specialties" :key="item" :value="item">
+            {{ item }}
+          </option>
+        </select>
+      </div>
+      <div class="filter-card">
+        <label class="filter-label">Минимальный рейтинг: {{ minRating }}</label>
+        <input type="range" min="0" max="5" step="0.5" v-model.number="minRating" />
+      </div>
+      <div class="filter-card search">
+        <label class="filter-label">Поиск по ФИО</label>
+        <div class="search-field">
+          <input v-model="searchQuery" type="text" placeholder="Начните вводить имя врача" />
+          <button v-if="searchQuery" class="ghost-btn" @click="clearSearch">Очистить</button>
+        </div>
+      </div>
+      <div class="filter-card">
+        <label class="filter-label">Сортировка</label>
+        <select v-model="sortBy" class="filter-select">
+          <option value="rating">По рейтингу</option>
+          <option value="experience">По стажу</option>
+          <option value="price">По цене</option>
+          <option value="name">По имени</option>
+        </select>
+      </div>
+      <div class="filter-card">
+        <label class="filter-label">Порядок</label>
+        <button class="ghost-btn" @click="toggleSortOrder">
+          {{ sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию' }}
+        </button>
+      </div>
+    </section>
+
+    <section class="content">
+      <div class="list">
+        <h2>Список врачей</h2>
+        <div class="loading" v-if="isLoading">Загрузка списка...</div>
+        <div class="error" v-else-if="loadError">{{ loadError }}</div>
+        <div v-else>
+          <div class="doctor-card" v-for="doctor in paginatedDoctors" :key="doctor.id">
+            <div class="doctor-main">
+              <img :src="doctor.avatar" :alt="doctor.name" class="doctor-avatar" />
+              <div class="doctor-info">
+                <h3>{{ doctor.name }}</h3>
+                <p class="doctor-specialty">{{ doctor.specialty }}</p>
+                <div class="doctor-rating">
+                  <span class="rating">{{ doctor.rating.toFixed(1) }}</span>
+                  <span class="reviews">({{ doctor.reviewsCount }} отзывов)</span>
+                </div>
+                <ul class="achievements">
+                  <li v-for="item in doctor.achievements" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+            </div>
+            <div class="doctor-meta">
+              <div class="meta-item">
+                <span>Стаж</span>
+                <strong>{{ doctor.experience }} лет</strong>
+              </div>
+              <div class="meta-item">
+                <span>Цена</span>
+                <strong>{{ doctor.price }} ₽</strong>
+              </div>
+              <div class="meta-item">
+                <span>Сегодня</span>
+                <div class="slots">
+                  <button
+                    v-for="slot in doctor.todaySlots"
+                    :key="slot"
+                    class="slot"
+                    @click="openSlot(doctor, slot)"
+                  >
+                    {{ slot }}
+                  </button>
+                  <span v-if="doctor.todaySlots.length === 0" class="empty">Нет слотов</span>
+                </div>
+              </div>
+              <button class="primary-btn" @click="selectDoctor(doctor)">Подробнее</button>
             </div>
           </div>
-          
-          <div class="stat-card expense-stat">
-            <div class="stat-icon">↓</div>
-            <div class="stat-info">
-              <div class="stat-label">Общий расход</div>
-              <div class="stat-value negative">{{ store.getters.totalExpense }}₸</div>
+          <div class="pagination">
+            <button class="ghost-btn" :disabled="currentPage === 1" @click="currentPage -= 1">Назад</button>
+            <span>Страница {{ currentPage }} из {{ totalPages }}</span>
+            <button class="ghost-btn" :disabled="currentPage === totalPages" @click="currentPage += 1">Вперед</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="details" v-if="selectedDoctor">
+        <h2>Профиль врача</h2>
+        <div class="doctor-profile">
+          <img :src="selectedDoctor.avatar" :alt="selectedDoctor.name" />
+          <div>
+            <h3>{{ selectedDoctor.name }}</h3>
+            <p class="doctor-specialty">{{ selectedDoctor.specialty }}</p>
+            <p class="doctor-rating">
+              Рейтинг {{ selectedDoctor.rating.toFixed(1) }} · {{ selectedDoctor.reviewsCount }} отзывов
+            </p>
+            <p class="doctor-description">{{ selectedDoctor.description }}</p>
+            <div class="profile-grid">
+              <div>
+                <span>Стаж</span>
+                <strong>{{ selectedDoctor.experience }} лет</strong>
+              </div>
+              <div>
+                <span>Цена консультации</span>
+                <strong>{{ selectedDoctor.price }} ₽</strong>
+              </div>
+              <div>
+                <span>Образование</span>
+                <strong>{{ selectedDoctor.education }}</strong>
+              </div>
             </div>
-          </div>
-          
-          <div class="stat-card max-profit">
-            <div class="stat-label">Максимальная прибыль</div>
-            <div class="stat-value">{{ store.getters.maxIncome }}₸</div>
-          </div>
-          
-          <div class="stat-card max-expense">
-            <div class="stat-label">Максимальный расход</div>
-            <div class="stat-value">{{ store.getters.maxExpense }}₸</div>
           </div>
         </div>
 
-        <div class="add-forms">
-          <div class="form-card income-form">
-            <h3 class="form-title">➕ Добавить новый доход</h3>
-            <input 
-              v-model="pTitle" 
-              placeholder="Название дохода..."
-              class="form-input"
-            >
-            <input 
-              v-model="pAmount" 
-              type="number" 
-              min="0"
-              placeholder="Amount"
-              class="form-input"
-            >
-            <button 
-              @click="addP" 
-              class="submit-btn income-btn"
-              :disabled="!pTitle.trim() || pAmount <= 0"
-            >
-              Добавить доход
-            </button>
+        <div class="schedule">
+          <h3>Расписание на неделю</h3>
+          <p class="note">Показаны только дни с доступными слотами.</p>
+          <div class="schedule-grid">
+            <div class="day" v-for="day in selectedDoctor.weeklySchedule" :key="day.date">
+              <span class="day-label">{{ day.dayLabel }}</span>
+              <div class="slots">
+                <button
+                  v-for="slot in day.slots"
+                  :key="slot"
+                  class="slot"
+                  @click="openSlot(selectedDoctor, slot)"
+                >
+                  {{ slot }}
+                </button>
+              </div>
+            </div>
           </div>
+        </div>
 
-          <div class="form-card expense-form">
-            <h3 class="form-title">➖ Добавить новый расход</h3>
-            <input 
-              v-model="eTitle" 
-              placeholder="Название расходов..."
-              class="form-input"
-            >
-            <input 
-              v-model="eAmount" 
-              type="number" 
-              min="0"
-              placeholder="Amount"
-              class="form-input"
-            >
-            <select v-model="eCat" class="form-select">
-              <option value="еда">🍕 Еда</option>
-              <option value="одежда">👕 Одежда</option>
-              <option value="транспорт">🚗 Транспорт</option>
-              <option value="остальное">📦 Другой</option>
+        <div class="reviews">
+          <div class="reviews-header">
+            <h3>Отзывы</h3>
+            <select v-model="reviewSort" class="filter-select">
+              <option value="date">Сначала новые</option>
+              <option value="rating">По рейтингу</option>
             </select>
-            <button 
-              @click="addE" 
-              class="submit-btn expense-btn"
-              :disabled="!eTitle.trim() || eAmount <= 0"
-            >
-              Добавить расходы
-            </button>
+          </div>
+          <div v-if="paginatedReviews.length === 0" class="empty">Пока нет отзывов.</div>
+          <div v-else class="review-card" v-for="review in paginatedReviews" :key="review.id">
+            <div class="review-head">
+              <strong>{{ review.name }}</strong>
+              <span>{{ review.rating }}★</span>
+            </div>
+            <p>{{ review.text }}</p>
+            <span class="review-date">{{ review.date }}</span>
+          </div>
+          <div class="pagination">
+            <button class="ghost-btn" :disabled="reviewPage === 1" @click="reviewPage -= 1">Назад</button>
+            <span>Страница {{ reviewPage }} из {{ reviewPages }}</span>
+            <button class="ghost-btn" :disabled="reviewPage === reviewPages" @click="reviewPage += 1">Вперед</button>
           </div>
         </div>
-      </div>
+      </aside>
+    </section>
 
-      <div class="right-panel">
-        <ProfitList />
-        <ExpenseList />
+    <div class="modal" v-if="showLoginModal">
+      <div class="modal-card">
+        <header>
+          <h3>Вход</h3>
+          <button class="ghost-btn" @click="showLoginModal = false">Закрыть</button>
+        </header>
+        <label>Email</label>
+        <input v-model="loginForm.email" type="email" placeholder="user@mail.com" />
+        <label>Пароль</label>
+        <input v-model="loginForm.password" type="password" placeholder="••••••" />
+        <p v-if="loginError" class="error">{{ loginError }}</p>
+        <button class="primary-btn" @click="submitLogin">Войти</button>
       </div>
-    </main>
+    </div>
+
+    <div class="modal" v-if="appointmentModal.open">
+      <div class="modal-card">
+        <header>
+          <h3>Запись на прием</h3>
+          <button class="ghost-btn" @click="closeAppointment">Отмена</button>
+        </header>
+        <p class="modal-info">
+          {{ appointmentModal.doctor?.name }} · {{ appointmentModal.slot }}
+        </p>
+        <label>Жалобы *</label>
+        <textarea v-model="appointmentForm.complaints" rows="3" placeholder="Опишите симптомы"></textarea>
+        <label>Хронические заболевания</label>
+        <textarea v-model="appointmentForm.chronic" rows="2" placeholder="Если есть"></textarea>
+        <div class="grid">
+          <div>
+            <label>Рост, см *</label>
+            <input v-model="appointmentForm.height" type="number" min="50" max="250" />
+          </div>
+          <div>
+            <label>Вес, кг *</label>
+            <input v-model="appointmentForm.weight" type="number" min="20" max="300" />
+          </div>
+        </div>
+        <label>Результаты анализов</label>
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt" @change="handleFile" />
+        <p v-if="appointmentError" class="error">{{ appointmentError }}</p>
+        <p v-if="appointmentSuccess" class="success">{{ appointmentSuccess }}</p>
+        <button class="primary-btn" @click="submitAppointment">Записаться</button>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .app {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  padding: 20px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 32px;
+  background: #f5f6fb;
+  color: #1c1f2a;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
 .header {
-  background: white;
-  border-radius: 16px;
-  padding: 24px 32px;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 24px;
+  background: #ffffff;
+  padding: 24px 32px;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
-.app-title {
-  margin: 0;
+.brand h1 {
+  margin: 4px 0;
   font-size: 28px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #2d6a4f 0%, #40916c 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
-.balance-display {
+.eyebrow {
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: #7c8195;
+  margin: 0;
+}
+
+.subtitle {
+  margin: 0;
+  color: #5f6477;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-info {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
 
-.balance-label {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 4px;
+.profile-name {
+  font-weight: 600;
 }
 
-.balance-amount {
-  font-size: 32px;
-  font-weight: 700;
+.profile-status {
+  font-size: 12px;
+  color: #6b7280;
 }
 
-.balance-amount.positive {
-  color: #2d6a4f;
+.profile-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
-.balance-amount.negative {
-  color: #bc4749;
-}
-
-.main-container {
+.filters {
+  margin-top: 24px;
   display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 24px;
-}
-
-.left-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.stats-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
 }
 
-.stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-}
-
-.income-stat {
-  border-left: 4px solid #2d6a4f;
-}
-
-.expense-stat {
-  border-left: 4px solid #bc4749;
-}
-
-.max-profit, .max-expense {
-  border-left: 4px solid #6c757d;
-}
-
-.stat-card .stat-icon {
-  font-size: 24px;
-  margin-bottom: 12px;
-}
-
-.income-stat .stat-icon {
-  color: #2d6a4f;
-}
-
-.expense-stat .stat-icon {
-  color: #bc4749;
-}
-
-.stat-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: #666;
-  font-weight: 500;
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.stat-value.positive {
-  color: #2d6a4f;
-}
-
-.stat-value.negative {
-  color: #bc4749;
-}
-
-.add-forms {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.form-card {
-  background: white;
+.filter-card {
+  background: #ffffff;
+  padding: 16px;
   border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.form-title {
-  margin: 0 0 20px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
+.filter-label {
+  font-size: 13px;
+  color: #6b7280;
 }
 
-.form-input, .form-select {
-  width: 100%;
-  padding: 12px 16px;
-  border: 2px solid #e9ecef;
-  border-radius: 10px;
-  font-size: 15px;
-  margin-bottom: 12px;
-  transition: all 0.2s ease;
-  background: white;
+.filter-select,
+.search-field input,
+input,
+textarea,
+select {
+  border: 1px solid #d8dce7;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: #fff;
 }
 
-.form-input:focus, .form-select:focus {
-  outline: none;
-  border-color: #40916c;
-  box-shadow: 0 0 0 3px rgba(64, 145, 108, 0.1);
+.search-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
-.form-select {
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 16px center;
-  padding-right: 40px;
-}
-
-.submit-btn {
-  width: 100%;
-  padding: 14px;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-top: 8px;
-}
-
-.submit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.income-btn {
-  background: linear-gradient(135deg, #2d6a4f 0%, #40916c 100%);
-  color: white;
-}
-
-.income-btn:not(:disabled):hover {
-  background: linear-gradient(135deg, #255c43 0%, #38805e 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(45, 106, 79, 0.2);
-}
-
-.expense-btn {
-  background: linear-gradient(135deg, #bc4749 0%, #d85658 100%);
-  color: white;
-}
-
-.expense-btn:not(:disabled):hover {
-  background: linear-gradient(135deg, #a93e40 0%, #c44c4e 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(188, 71, 73, 0.2);
-}
-
-.right-panel {
+.content {
+  margin-top: 24px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 24px;
 }
 
-@media (max-width: 1200px) {
-  .main-container {
-    grid-template-columns: 1fr;
-  }
-  
-  .right-panel {
+.list,
+.details {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.doctor-card {
+  border: 1px solid #eef0f6;
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.doctor-main {
+  display: flex;
+  gap: 16px;
+}
+
+.doctor-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.doctor-info h3 {
+  margin: 0;
+}
+
+.doctor-specialty {
+  color: #6b7280;
+  margin: 4px 0 8px;
+}
+
+.doctor-rating {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.achievements {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.doctor-meta {
+  display: grid;
+  gap: 12px;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.meta-item strong {
+  color: #111827;
+}
+
+.slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.slot {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.empty {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.primary-btn {
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ghost-btn {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.details img {
+  width: 120px;
+  height: 120px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.doctor-profile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+}
+
+.doctor-description {
+  color: #4b5563;
+}
+
+.profile-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.profile-grid strong {
+  display: block;
+  color: #111827;
+}
+
+.schedule {
+  margin-top: 24px;
+}
+
+.note {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.day {
+  background: #f9fafb;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.day-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.reviews {
+  margin-top: 24px;
+}
+
+.review-card {
+  border-bottom: 1px solid #eef0f6;
+  padding: 12px 0;
+  font-size: 14px;
+}
+
+.review-head {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.review-date {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.loading,
+.error,
+.success {
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.error {
+  color: #dc2626;
+}
+
+.success {
+  color: #16a34a;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+}
+
+.modal-card {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 16px;
+  width: min(480px, 90vw);
+  display: grid;
+  gap: 10px;
+}
+
+.modal-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-info {
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1024px) {
+  .content {
     grid-template-columns: 1fr;
   }
 }
@@ -384,19 +963,14 @@ const addE = () => {
   .header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
   }
-  
-  .balance-display {
-    align-items: flex-start;
-  }
-  
-  .stats-cards {
+
+  .doctor-card {
     grid-template-columns: 1fr;
   }
-  
-  .app {
-    padding: 16px;
+
+  .doctor-profile {
+    grid-template-columns: 1fr;
   }
 }
 </style>
