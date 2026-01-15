@@ -100,9 +100,7 @@ const doctors = ref([
       { date: '2024-09-25', dayLabel: 'Ср, 25', slots: ['09:00', '10:30'] },
       { date: '2024-09-28', dayLabel: 'Сб, 28', slots: ['09:00', '11:00'] }
     ],
-    reviews: [
-      { id: 9, name: 'Юрий П.', rating: 4, text: 'Хороший специалист.', date: '2024-06-12' }
-    ]
+    reviews: [{ id: 9, name: 'Юрий П.', rating: 4, text: 'Хороший специалист.', date: '2024-06-12' }]
   },
   {
     id: 5,
@@ -143,13 +141,13 @@ const doctors = ref([
       { date: '2024-09-23', dayLabel: 'Пн, 23', slots: ['12:00', '14:00'] },
       { date: '2024-09-26', dayLabel: 'Чт, 26', slots: ['09:00', '11:00'] }
     ],
-    reviews: [
-      { id: 12, name: 'Егор П.', rating: 4, text: 'Все понравилось, внимательно.', date: '2024-07-28' }
-    ]
+    reviews: [{ id: 12, name: 'Егор П.', rating: 4, text: 'Все понравилось, внимательно.', date: '2024-07-28' }]
   }
 ])
 
 const selectedDoctor = ref(doctors.value[0])
+const currentView = ref('home')
+const previousView = ref('home')
 
 const selectedSpecialty = ref('')
 const minRating = ref(0)
@@ -170,7 +168,7 @@ const loginForm = ref({
   password: ''
 })
 const loginError = ref('')
-const showLoginModal = ref(false)
+const loginNotice = ref('')
 
 const appointmentModal = ref({
   open: false,
@@ -186,6 +184,8 @@ const appointmentForm = ref({
 })
 const appointmentError = ref('')
 const appointmentSuccess = ref('')
+
+const pendingAppointment = ref(null)
 
 const reviewSort = ref('date')
 const reviewPage = ref(1)
@@ -278,6 +278,8 @@ const toggleSortOrder = () => {
 
 const selectDoctor = (doctor) => {
   selectedDoctor.value = doctor
+  previousView.value = currentView.value
+  currentView.value = 'doctor'
 }
 
 const clearSearch = () => {
@@ -286,8 +288,10 @@ const clearSearch = () => {
 
 const openSlot = (doctor, slot) => {
   if (!isAuthenticated.value) {
-    showLoginModal.value = true
-    loginError.value = 'Чтобы записаться, нужно войти в аккаунт.'
+    pendingAppointment.value = { doctor, slot }
+    loginNotice.value = 'Чтобы записаться, нужно войти в аккаунт.'
+    previousView.value = currentView.value
+    currentView.value = 'login'
     return
   }
   appointmentModal.value = {
@@ -351,8 +355,19 @@ const submitLogin = () => {
     avatar: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=facearea&w=48&h=48'
   }
   loginForm.value = { email: '', password: '' }
-  showLoginModal.value = false
   loginError.value = ''
+  loginNotice.value = ''
+
+  currentView.value = previousView.value
+
+  if (pendingAppointment.value) {
+    appointmentModal.value = {
+      open: true,
+      doctor: pendingAppointment.value.doctor,
+      slot: pendingAppointment.value.slot
+    }
+    pendingAppointment.value = null
+  }
 }
 
 const handleFile = (event) => {
@@ -366,200 +381,235 @@ const handleFile = (event) => {
     <header class="header">
       <div class="brand">
         <p class="eyebrow">Digital Direction</p>
-        <h1>Запись к врачам</h1>
-        <p class="subtitle">Выберите специалиста, настройте фильтры и запишитесь на удобное время.</p>
+        <h1>Медицинская запись</h1>
+        <p class="subtitle">Поиск врачей, расписание и запись на консультации в одном сервисе.</p>
       </div>
+      <nav class="nav">
+        <button class="ghost-btn" :class="{ active: currentView === 'home' }" @click="currentView = 'home'">
+          Врачи
+        </button>
+        <button
+          class="ghost-btn"
+          :class="{ active: currentView === 'doctor' }"
+          :disabled="!selectedDoctor"
+          @click="currentView = 'doctor'"
+        >
+          Профиль врача
+        </button>
+        <button class="ghost-btn" :class="{ active: currentView === 'login' }" @click="currentView = 'login'">
+          Вход
+        </button>
+      </nav>
       <div class="profile">
         <div class="profile-info">
           <span class="profile-name">{{ userProfile.name }}</span>
           <span class="profile-status">{{ isAuthenticated ? 'Авторизован' : 'Гость' }}</span>
         </div>
         <img :src="userProfile.avatar" alt="User avatar" class="profile-avatar" />
-        <button class="ghost-btn" @click="showLoginModal = true" v-if="!isAuthenticated">Войти</button>
       </div>
     </header>
 
-    <section class="filters">
-      <div class="filter-card">
-        <label class="filter-label">Специальность</label>
-        <select v-model="selectedSpecialty" class="filter-select">
-          <option value="">Все специальности</option>
-          <option v-for="item in specialties" :key="item" :value="item">
-            {{ item }}
-          </option>
-        </select>
-      </div>
-      <div class="filter-card">
-        <label class="filter-label">Минимальный рейтинг: {{ minRating }}</label>
-        <input type="range" min="0" max="5" step="0.5" v-model.number="minRating" />
-      </div>
-      <div class="filter-card search">
-        <label class="filter-label">Поиск по ФИО</label>
-        <div class="search-field">
-          <input v-model="searchQuery" type="text" placeholder="Начните вводить имя врача" />
-          <button v-if="searchQuery" class="ghost-btn" @click="clearSearch">Очистить</button>
-        </div>
-      </div>
-      <div class="filter-card">
-        <label class="filter-label">Сортировка</label>
-        <select v-model="sortBy" class="filter-select">
-          <option value="rating">По рейтингу</option>
-          <option value="experience">По стажу</option>
-          <option value="price">По цене</option>
-          <option value="name">По имени</option>
-        </select>
-      </div>
-      <div class="filter-card">
-        <label class="filter-label">Порядок</label>
-        <button class="ghost-btn" @click="toggleSortOrder">
-          {{ sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию' }}
-        </button>
-      </div>
-    </section>
-
-    <section class="content">
-      <div class="list">
-        <h2>Список врачей</h2>
-        <div class="loading" v-if="isLoading">Загрузка списка...</div>
-        <div class="error" v-else-if="loadError">{{ loadError }}</div>
-        <div v-else>
-          <div class="doctor-card" v-for="doctor in paginatedDoctors" :key="doctor.id">
-            <div class="doctor-main">
-              <img :src="doctor.avatar" :alt="doctor.name" class="doctor-avatar" />
-              <div class="doctor-info">
-                <h3>{{ doctor.name }}</h3>
-                <p class="doctor-specialty">{{ doctor.specialty }}</p>
-                <div class="doctor-rating">
-                  <span class="rating">{{ doctor.rating.toFixed(1) }}</span>
-                  <span class="reviews">({{ doctor.reviewsCount }} отзывов)</span>
-                </div>
-                <ul class="achievements">
-                  <li v-for="item in doctor.achievements" :key="item">{{ item }}</li>
-                </ul>
-              </div>
-            </div>
-            <div class="doctor-meta">
-              <div class="meta-item">
-                <span>Стаж</span>
-                <strong>{{ doctor.experience }} лет</strong>
-              </div>
-              <div class="meta-item">
-                <span>Цена</span>
-                <strong>{{ doctor.price }} ₽</strong>
-              </div>
-              <div class="meta-item">
-                <span>Сегодня</span>
-                <div class="slots">
-                  <button
-                    v-for="slot in doctor.todaySlots"
-                    :key="slot"
-                    class="slot"
-                    @click="openSlot(doctor, slot)"
-                  >
-                    {{ slot }}
-                  </button>
-                  <span v-if="doctor.todaySlots.length === 0" class="empty">Нет слотов</span>
-                </div>
-              </div>
-              <button class="primary-btn" @click="selectDoctor(doctor)">Подробнее</button>
-            </div>
-          </div>
-          <div class="pagination">
-            <button class="ghost-btn" :disabled="currentPage === 1" @click="currentPage -= 1">Назад</button>
-            <span>Страница {{ currentPage }} из {{ totalPages }}</span>
-            <button class="ghost-btn" :disabled="currentPage === totalPages" @click="currentPage += 1">Вперед</button>
-          </div>
-        </div>
-      </div>
-
-      <aside class="details" v-if="selectedDoctor">
-        <h2>Профиль врача</h2>
-        <div class="doctor-profile">
-          <img :src="selectedDoctor.avatar" :alt="selectedDoctor.name" />
-          <div>
-            <h3>{{ selectedDoctor.name }}</h3>
-            <p class="doctor-specialty">{{ selectedDoctor.specialty }}</p>
-            <p class="doctor-rating">
-              Рейтинг {{ selectedDoctor.rating.toFixed(1) }} · {{ selectedDoctor.reviewsCount }} отзывов
-            </p>
-            <p class="doctor-description">{{ selectedDoctor.description }}</p>
-            <div class="profile-grid">
-              <div>
-                <span>Стаж</span>
-                <strong>{{ selectedDoctor.experience }} лет</strong>
-              </div>
-              <div>
-                <span>Цена консультации</span>
-                <strong>{{ selectedDoctor.price }} ₽</strong>
-              </div>
-              <div>
-                <span>Образование</span>
-                <strong>{{ selectedDoctor.education }}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="schedule">
-          <h3>Расписание на неделю</h3>
-          <p class="note">Показаны только дни с доступными слотами.</p>
-          <div class="schedule-grid">
-            <div class="day" v-for="day in selectedDoctor.weeklySchedule" :key="day.date">
-              <span class="day-label">{{ day.dayLabel }}</span>
-              <div class="slots">
-                <button
-                  v-for="slot in day.slots"
-                  :key="slot"
-                  class="slot"
-                  @click="openSlot(selectedDoctor, slot)"
-                >
-                  {{ slot }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="reviews">
-          <div class="reviews-header">
-            <h3>Отзывы</h3>
-            <select v-model="reviewSort" class="filter-select">
-              <option value="date">Сначала новые</option>
-              <option value="rating">По рейтингу</option>
+    <main class="main">
+      <section v-if="currentView === 'home'" class="home">
+        <div class="filters">
+          <div class="filter-card">
+            <label class="filter-label">Специальность</label>
+            <select v-model="selectedSpecialty" class="filter-select">
+              <option value="">Все специальности</option>
+              <option v-for="item in specialties" :key="item" :value="item">
+                {{ item }}
+              </option>
             </select>
           </div>
-          <div v-if="paginatedReviews.length === 0" class="empty">Пока нет отзывов.</div>
-          <div v-else class="review-card" v-for="review in paginatedReviews" :key="review.id">
-            <div class="review-head">
-              <strong>{{ review.name }}</strong>
-              <span>{{ review.rating }}★</span>
-            </div>
-            <p>{{ review.text }}</p>
-            <span class="review-date">{{ review.date }}</span>
+          <div class="filter-card">
+            <label class="filter-label">Минимальный рейтинг: {{ minRating }}</label>
+            <input type="range" min="0" max="5" step="0.5" v-model.number="minRating" />
           </div>
-          <div class="pagination">
-            <button class="ghost-btn" :disabled="reviewPage === 1" @click="reviewPage -= 1">Назад</button>
-            <span>Страница {{ reviewPage }} из {{ reviewPages }}</span>
-            <button class="ghost-btn" :disabled="reviewPage === reviewPages" @click="reviewPage += 1">Вперед</button>
+          <div class="filter-card search">
+            <label class="filter-label">Поиск по ФИО</label>
+            <div class="search-field">
+              <input v-model="searchQuery" type="text" placeholder="Начните вводить имя врача" />
+              <button v-if="searchQuery" class="ghost-btn" @click="clearSearch">Очистить</button>
+            </div>
+          </div>
+          <div class="filter-card">
+            <label class="filter-label">Сортировка</label>
+            <select v-model="sortBy" class="filter-select">
+              <option value="rating">По рейтингу</option>
+              <option value="experience">По стажу</option>
+              <option value="price">По цене</option>
+              <option value="name">По имени</option>
+            </select>
+          </div>
+          <div class="filter-card">
+            <label class="filter-label">Порядок</label>
+            <button class="ghost-btn" @click="toggleSortOrder">
+              {{ sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию' }}
+            </button>
+          </div>
+          <div class="filter-card stats">
+            <span class="filter-label">Найдено врачей</span>
+            <strong>{{ filteredDoctors.length }}</strong>
+            <span class="hint">Обновлено 2 минуты назад</span>
           </div>
         </div>
-      </aside>
-    </section>
 
-    <div class="modal" v-if="showLoginModal">
-      <div class="modal-card">
-        <header>
-          <h3>Вход</h3>
-          <button class="ghost-btn" @click="showLoginModal = false">Закрыть</button>
-        </header>
-        <label>Email</label>
-        <input v-model="loginForm.email" type="email" placeholder="user@mail.com" />
-        <label>Пароль</label>
-        <input v-model="loginForm.password" type="password" placeholder="••••••" />
-        <p v-if="loginError" class="error">{{ loginError }}</p>
-        <button class="primary-btn" @click="submitLogin">Войти</button>
-      </div>
-    </div>
+        <section class="list">
+          <div class="list-head">
+            <h2>Список врачей</h2>
+            <p class="note">Данные приходят из /api/doctors с учетом фильтров и сортировки.</p>
+          </div>
+          <div class="loading" v-if="isLoading">Загрузка списка...</div>
+          <div class="error" v-else-if="loadError">{{ loadError }}</div>
+          <div v-else>
+            <div class="doctor-card" v-for="doctor in paginatedDoctors" :key="doctor.id">
+              <div class="doctor-main">
+                <img :src="doctor.avatar" :alt="doctor.name" class="doctor-avatar" />
+                <div class="doctor-info">
+                  <h3>{{ doctor.name }}</h3>
+                  <p class="doctor-specialty">{{ doctor.specialty }}</p>
+                  <div class="doctor-rating">
+                    <span class="rating">{{ doctor.rating.toFixed(1) }}</span>
+                    <span class="reviews">({{ doctor.reviewsCount }} отзывов)</span>
+                  </div>
+                  <ul class="achievements">
+                    <li v-for="item in doctor.achievements" :key="item">{{ item }}</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="doctor-meta">
+                <div class="meta-item">
+                  <span>Стаж</span>
+                  <strong>{{ doctor.experience }} лет</strong>
+                </div>
+                <div class="meta-item">
+                  <span>Цена</span>
+                  <strong>{{ doctor.price }} ₽</strong>
+                </div>
+                <div class="meta-item">
+                  <span>Сегодня</span>
+                  <div class="slots">
+                    <button
+                      v-for="slot in doctor.todaySlots"
+                      :key="slot"
+                      class="slot"
+                      @click="openSlot(doctor, slot)"
+                    >
+                      {{ slot }}
+                    </button>
+                    <span v-if="doctor.todaySlots.length === 0" class="empty">Нет слотов</span>
+                  </div>
+                </div>
+                <button class="primary-btn" @click="selectDoctor(doctor)">Подробнее</button>
+              </div>
+            </div>
+            <div class="pagination">
+              <button class="ghost-btn" :disabled="currentPage === 1" @click="currentPage -= 1">Назад</button>
+              <span>Страница {{ currentPage }} из {{ totalPages }}</span>
+              <button class="ghost-btn" :disabled="currentPage === totalPages" @click="currentPage += 1">
+                Вперед
+              </button>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section v-else-if="currentView === 'doctor'" class="doctor-page" v-if="selectedDoctor">
+        <div class="doctor-hero">
+          <button class="ghost-btn" @click="currentView = 'home'">← Назад к списку</button>
+          <div class="doctor-profile">
+            <img :src="selectedDoctor.avatar" :alt="selectedDoctor.name" />
+            <div>
+              <h2>{{ selectedDoctor.name }}</h2>
+              <p class="doctor-specialty">{{ selectedDoctor.specialty }}</p>
+              <p class="doctor-rating">
+                Рейтинг {{ selectedDoctor.rating.toFixed(1) }} · {{ selectedDoctor.reviewsCount }} отзывов
+              </p>
+              <p class="doctor-description">{{ selectedDoctor.description }}</p>
+              <div class="profile-grid">
+                <div>
+                  <span>Стаж</span>
+                  <strong>{{ selectedDoctor.experience }} лет</strong>
+                </div>
+                <div>
+                  <span>Цена консультации</span>
+                  <strong>{{ selectedDoctor.price }} ₽</strong>
+                </div>
+                <div>
+                  <span>Образование</span>
+                  <strong>{{ selectedDoctor.education }}</strong>
+                </div>
+                <div>
+                  <span>Достижения</span>
+                  <strong>{{ selectedDoctor.achievements.join(', ') }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="doctor-grid">
+          <div class="schedule">
+            <h3>Расписание на неделю</h3>
+            <p class="note">Показаны только дни с доступными слотами. В выходные — до 14:00.</p>
+            <div class="schedule-grid">
+              <div class="day" v-for="day in selectedDoctor.weeklySchedule" :key="day.date">
+                <div class="day-header">
+                  <span class="day-label">{{ day.dayLabel }}</span>
+                  <span class="day-meta">{{ day.slots.length }} слотов</span>
+                </div>
+                <div class="slots">
+                  <button v-for="slot in day.slots" :key="slot" class="slot" @click="openSlot(selectedDoctor, slot)">
+                    {{ slot }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="reviews">
+            <div class="reviews-header">
+              <h3>Отзывы</h3>
+              <select v-model="reviewSort" class="filter-select">
+                <option value="date">Сначала новые</option>
+                <option value="rating">По рейтингу</option>
+              </select>
+            </div>
+            <div v-if="paginatedReviews.length === 0" class="empty">Пока нет отзывов.</div>
+            <div v-else class="review-card" v-for="review in paginatedReviews" :key="review.id">
+              <div class="review-head">
+                <strong>{{ review.name }}</strong>
+                <span>{{ review.rating }}★</span>
+              </div>
+              <p>{{ review.text }}</p>
+              <span class="review-date">{{ review.date }}</span>
+            </div>
+            <div class="pagination">
+              <button class="ghost-btn" :disabled="reviewPage === 1" @click="reviewPage -= 1">Назад</button>
+              <span>Страница {{ reviewPage }} из {{ reviewPages }}</span>
+              <button class="ghost-btn" :disabled="reviewPage === reviewPages" @click="reviewPage += 1">
+                Вперед
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section v-else class="login-page">
+        <div class="login-card">
+          <h2>Вход</h2>
+          <p class="note">Авторизуйтесь, чтобы записываться на прием и видеть личные данные.</p>
+          <label>Email</label>
+          <input v-model="loginForm.email" type="email" placeholder="user@mail.com" />
+          <label>Пароль</label>
+          <input v-model="loginForm.password" type="password" placeholder="••••••" />
+          <p v-if="loginNotice" class="info">{{ loginNotice }}</p>
+          <p v-if="loginError" class="error">{{ loginError }}</p>
+          <button class="primary-btn" @click="submitLogin">Войти</button>
+          <button class="ghost-btn" @click="currentView = previousView">Отмена</button>
+        </div>
+      </section>
+    </main>
 
     <div class="modal" v-if="appointmentModal.open">
       <div class="modal-card">
@@ -567,9 +617,7 @@ const handleFile = (event) => {
           <h3>Запись на прием</h3>
           <button class="ghost-btn" @click="closeAppointment">Отмена</button>
         </header>
-        <p class="modal-info">
-          {{ appointmentModal.doctor?.name }} · {{ appointmentModal.slot }}
-        </p>
+        <p class="modal-info">{{ appointmentModal.doctor?.name }} · {{ appointmentModal.slot }}</p>
         <label>Жалобы *</label>
         <textarea v-model="appointmentForm.complaints" rows="3" placeholder="Опишите симптомы"></textarea>
         <label>Хронические заболевания</label>
@@ -604,10 +652,10 @@ const handleFile = (event) => {
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(240px, 1fr) auto;
   gap: 24px;
+  align-items: center;
   background: #ffffff;
   padding: 24px 32px;
   border-radius: 20px;
@@ -632,10 +680,23 @@ const handleFile = (event) => {
   color: #5f6477;
 }
 
+.nav {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.nav .ghost-btn.active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
+}
+
 .profile {
   display: flex;
   align-items: center;
   gap: 16px;
+  justify-content: flex-end;
 }
 
 .profile-info {
@@ -660,8 +721,16 @@ const handleFile = (event) => {
   object-fit: cover;
 }
 
-.filters {
+.main {
   margin-top: 24px;
+}
+
+.home {
+  display: grid;
+  gap: 24px;
+}
+
+.filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
@@ -675,6 +744,15 @@ const handleFile = (event) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.filter-card.stats strong {
+  font-size: 22px;
+}
+
+.filter-card.stats .hint {
+  font-size: 12px;
+  color: #9ca3af;
 }
 
 .filter-label {
@@ -700,19 +778,18 @@ select {
   align-items: center;
 }
 
-.content {
-  margin-top: 24px;
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 24px;
-}
-
-.list,
-.details {
+.list {
   background: #ffffff;
   border-radius: 20px;
   padding: 24px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.list-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .doctor-card {
@@ -817,6 +894,11 @@ select {
   cursor: pointer;
 }
 
+.ghost-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .pagination {
   display: flex;
   justify-content: space-between;
@@ -825,17 +907,31 @@ select {
   font-size: 14px;
 }
 
-.details img {
-  width: 120px;
-  height: 120px;
-  border-radius: 16px;
-  object-fit: cover;
+.doctor-page {
+  display: grid;
+  gap: 24px;
+}
+
+.doctor-hero {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  display: grid;
+  gap: 16px;
 }
 
 .doctor-profile {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 16px;
+}
+
+.doctor-profile img {
+  width: 140px;
+  height: 140px;
+  border-radius: 16px;
+  object-fit: cover;
 }
 
 .doctor-description {
@@ -856,8 +952,18 @@ select {
   color: #111827;
 }
 
-.schedule {
-  margin-top: 24px;
+.doctor-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+}
+
+.schedule,
+.reviews {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
 .note {
@@ -877,13 +983,23 @@ select {
   border-radius: 12px;
 }
 
-.day-label {
-  font-weight: 600;
+.day-header {
+  display: flex;
+  justify-content: space-between;
   font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
 }
 
-.reviews {
-  margin-top: 24px;
+.day-meta {
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.reviews-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .review-card {
@@ -901,6 +1017,27 @@ select {
 .review-date {
   font-size: 12px;
   color: #9ca3af;
+}
+
+.login-page {
+  display: grid;
+  place-items: center;
+  padding: 40px 0;
+}
+
+.login-card {
+  background: #ffffff;
+  padding: 32px;
+  border-radius: 20px;
+  width: min(420px, 92vw);
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.info {
+  font-size: 13px;
+  color: #1d4ed8;
 }
 
 .loading,
@@ -953,24 +1090,33 @@ select {
   gap: 12px;
 }
 
-@media (max-width: 1024px) {
-  .content {
+@media (max-width: 1100px) {
+  .header {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .profile {
+    justify-content: flex-start;
+  }
+
+  .doctor-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 768px) {
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .doctor-card {
     grid-template-columns: 1fr;
   }
 
   .doctor-profile {
     grid-template-columns: 1fr;
+  }
+
+  .list-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>
