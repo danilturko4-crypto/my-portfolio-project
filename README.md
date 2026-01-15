@@ -1,5 +1,31 @@
-# Vue 3 + Vite
+# Medical Booking — Nuxt 3
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Медицинское веб-приложение для записи на консультации к врачам. Реализованы основные экраны из ТЗ: список врачей с фильтрами, страница врача, отзывы и модальное окно записи на прием, а также форма авторизации.
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## Стек
+
+- Nuxt 3 + SSR
+- TypeScript
+- Pinia
+
+## Быстрый старт
+
+```bash
+npm install
+npm run dev
+```
+
+Приложение будет доступно на `http://localhost:3000`.
+
+## Описание API (mock)
+
+В проекте есть моковые эндпоинты Nuxt server API:
+
+- `GET /api/doctors` — список врачей с фильтрами, сортировкой и пагинацией
+- `GET /api/specialties` — список специальностей
+- `GET /api/doctors/{id}` — информация о враче
+- `GET /api/doctors/{id}/schedule` — расписание врача
+- `GET /api/doctors/{id}/reviews` — отзывы с сортировкой и пагинацией
+- `POST /api/auth/login` — авторизация
+- `GET /api/auth/me` — данные пользователя (требует токен)
+- `POST /api/appointments` — создание записи (FormData, требует авторизации)
